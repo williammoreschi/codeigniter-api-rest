@@ -26,7 +26,7 @@ json: { "quantidade":"2" }
 Remover pedido DELETE - http://url-onde-o-projeto-esta/id_pedido
 
 Configurar banco de dados
-\pizzaria\application\config\database.php
+\pasta-do-projeto\application\config\database.php
 
 Pasta onde o arquivo do banco está
-\pizzaria\db
+\pasta-do-projeto\db

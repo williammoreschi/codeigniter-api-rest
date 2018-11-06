@@ -1,19 +1,14 @@
 <?
 defined('BASEPATH') OR exit('No direct script access allowed');
 class Pedidos_model extends CI_Model {
-    
+
     public function GetAll($id=NULL){
-        $this->db->select("i.id_pedido as pedido, i.id as item, i.tamanho,i.sabor, ps.descricao as adicional");
-        $this->db->select("(SELECT SUM(COALESCE(it.tamanho_tempo, 0) + COALESCE(it.sabor_tempo, 0) + COALESCE(psl.tempo, 0) ) FROM item it LEFT JOIN personalizacao psl on psl.id_item = it.id WHERE i.id = it.id GROUP BY psl.id_item) as tempo_preparo");
-        $this->db->select("(SELECT SUM(COALESCE(it.tamanho_valor, 0) + COALESCE(it.sabor_valor, 0) + COALESCE(psl.valor, 0) ) FROM item it LEFT JOIN personalizacao psl on psl.id_item = it.id WHERE i.id = it.id GROUP BY psl.id_item) as valor");
+        $this->db->select("*");
         if(!empty($id)){
-        	$this->db->where('i.id_pedido',$id);
+            $this->db->where('id',$id);
         }
-        $this->db->from('item i');
-        $this->db->join('pedido p','i.id_pedido = p.id');
-        $this->db->join('personalizacao ps','ps.id_item = i.id','left');
-        $this->db->order_by('i.data','DESC');
-        $this->db->order_by('i.id_pedido','DESC');
+        $this->db->from('pedido');
+        $this->db->order_by('id','DESC');
         return $this->db->get()->result_array();
     }
 
@@ -22,132 +17,144 @@ class Pedidos_model extends CI_Model {
     }
 
     public function Insert($dados) {
+
+        $status = true;
+        $mensagem = NULL;
+        $novo_pedido = array();
+        $descricao_personaliza = null;
+        $preparo_personaliza = 0;
+        $valor_personaliza = 0;
+        $id_pedido = NULL;
+
         if (!isset($dados)) {
-            $response['status'] = false;
-            $response['message'] = "Dados não informados.";
+            $status = false;
+            $mensagem .= "Dados não informados.";
         } else {
- 			$personalizacao = false;
-            
-            $this->form_validation->set_data($dados);
-            
-            $this->form_validation->set_rules('tamanho','','required',array('required' => 'Você deve selecionar o tamanho.'));
-            $this->form_validation->set_rules('tamanho_tempo','','required',array('required' => 'O tamanho não disponível no momento.'));
-            $this->form_validation->set_rules('tamanho_valor','','required',array('required' => 'O tamanho não disponível no momento.'));
-            $this->form_validation->set_rules('sabor','','required',array('required' => 'Você deve selecionar um sabor.'));
-            $this->form_validation->set_rules('sabor_tempo','','required',array('required' => 'O sabor selecionado não está disponível no momento.'));
-            $this->form_validation->set_rules('sabor_valor','','required',array('required' => 'O sabor selecionado não está disponível no momento.'));
-            
-            if(!empty($dados['personalizacao_descricao'])){
-            	$this->form_validation->set_rules('personalizacao_valor','','required',array('required' => 'A personalizacao escolhida não é permitida.'));
-            	$this->form_validation->set_rules('personalizacao_tempo','','required',array('required' => 'A personalizacao escolhida não é permitida.'));            	
-	 			$personalizacao = true;
+            $tamanho[0] = array("id"=>"1","descricao"=>"Pequena","valor"=>"20.00","preparo"=>"15");
+            $tamanho[1] = array("id"=>"2","descricao"=>"Média","valor"=>"30.00","preparo"=>"20");
+            $tamanho[2] = array("id"=>"3","descricao"=>"Grande","valor"=>"40.00","preparo"=>"25");
+
+            $sabor[0] = array("id"=>"1","descricao"=>"Calabresa","preparo"=>"0");
+            $sabor[1] = array("id"=>"2","descricao"=>"Marguerita","preparo"=>"0");
+            $sabor[2] = array("id"=>"3","descricao"=>"Portuguesa","preparo"=>"5");
+
+            $personalizacao[0] = array("id"=>1,"descricao"=>"Extra Bacon","valor"=>"3.00","preparo"=>"0");
+            $personalizacao[1] = array("id"=>2,"descricao"=>"Sem Cebola","valor"=>"0.00","preparo"=>"0");
+            $personalizacao[2] = array("id"=>3,"descricao"=>"Borda Recheada","valor"=>"5.00","preparo"=>"5");
+
+
+            if(!empty($dados['tamanho']) && array_search($dados['tamanho'], array_column($tamanho, 'id')) !== false){
+                $ponteiro = array_search($dados['tamanho'], array_column($tamanho, 'id'));
+                $novo_pedido = array(
+                    "tamanho"=>$tamanho[$ponteiro]['descricao'],
+                    "total"=>$tamanho[$ponteiro]['valor'],
+                    "preparo"=>$tamanho[$ponteiro]['preparo']
+                );
+
+                $novo_pedido['tamanho'] = $tamanho[$ponteiro]['descricao'];
+                $novo_pedido['total'] = $tamanho[$ponteiro]['valor'];
+                $novo_pedido['preparo'] = $tamanho[$ponteiro]['preparo'];
+
+
+            }else{
+                $status = false;
+                $mensagem .= "O tamanho da pizza não informado, ou não está disponivel no momento";
             }
 
-            if ($this->form_validation->run() === false) {
-                $response['status'] = false;
-                $response['message'] = validation_errors();
-            } else {
+            if(!empty($status)){
+                if(!empty($dados['sabor']) && array_search($dados['sabor'], array_column($sabor, 'id')) !== false){
+                    $ponteiro = array_search($dados['sabor'], array_column($sabor, 'id'));
+                    $preparo = $novo_pedido['preparo']+$sabor[$ponteiro]['preparo'];
 
-                $pedido_existe = false;
-            	if(!empty($dados['id_pedido'])){
-                    $p = $this->GetAll($dados['id_pedido']);
-                    if(!empty($p)){
-                        $pedido_existe = true;
+                    $novo_pedido['sabor']   = $sabor[$ponteiro]['descricao'];
+                    $novo_pedido['preparo'] = $preparo;
+                }else{
+                    $status = false;
+                    $mensagem .= "O sabor da pizza não informado, ou não está disponivel no momento";
+                }
+            }
+
+            if(!empty($status)){
+                if(!empty($dados['personaliza'])){
+                    if(is_array($dados['personaliza'])){
+                        foreach ($dados['personaliza'] as $key => $value) {
+                            if(!empty($value) && array_search($value, array_column($personalizacao, 'id')) !== false){
+                                $ponteiro = array_search($value, array_column($personalizacao, 'id'));
+                                $descricao_personaliza .= $personalizacao[$ponteiro]['descricao']." - R$".$personalizacao[$ponteiro]['valor']."\n";
+                                $preparo_personaliza += $personalizacao[$ponteiro]['preparo'];
+                                $valor_personaliza += $personalizacao[$ponteiro]['valor'];
+                            }else{
+                                $status = false;
+                                $mensagem .= "Uma ou mais personalização não existe.";
+                                break;
+                            }
+                        }
+                        if(!empty($status)){
+
+                            $preparo = $novo_pedido['preparo']+$preparo_personaliza;
+                            $total = $novo_pedido['total']+$valor_personaliza;
+
+                            $novo_pedido['personalizacao'] = $descricao_personaliza;
+                            $novo_pedido['total'] = $total;
+                            $novo_pedido['preparo'] = $preparo;
+                        }
+                    }else{
+                        $status = false;
+                        $mensagem .= "Uma ou mais personalização não existe...";
                     }
                 }
-                
-                $this->db->trans_begin();
-                if(empty($pedido_existe)){
-                    $this->db->insert('pedido',array('data'=>date('Y-m-d h:i:s')));
-                    $dados['id_pedido'] = $this->db->insert_id();  
-                }
+            }
 
-            	if($personalizacao == true){
-        			$dados_personalizacao['descricao'] 	= $dados['personalizacao_descricao'];
-        			$dados_personalizacao['valor'] 		= $dados['personalizacao_valor'];
-        			$dados_personalizacao['tempo'] 		= $dados['personalizacao_tempo'];
-            		unset($dados['personalizacao_descricao']);
-            		unset($dados['personalizacao_valor']);
-            		unset($dados['personalizacao_tempo']);
-            	}
+            if(!empty($status)){
 
-                $this->db->insert('item',$dados);
-               
-                if(!empty($personalizacao)){
-                	$dados_personalizacao['id_item'] = $this->db->insert_id();  
-               		$this->db->insert('personalizacao',$dados_personalizacao);
-                }
+                $this->db->insert('pedido',$novo_pedido);
 
-            
-                if ($this->db->trans_status() === TRUE){
-                    $response['status'] = true;
-                    $response['message'] = "Pedido criado com sucesso.";
-                    $response['id_pedido'] = $dados['id_pedido'];
-                    $this->db->trans_commit();
+                if ($this->db->affected_rows()){
+                    $mensagem   = "Pedido criado com sucesso.";
+                    $id_pedido  = $this->db->insert_id();
                 }else{
-                	$response['status'] = false;
-                    $response['message'] = $this->db->error_message();
-                    $response['id_pedido'] = NULL;
-                	$this->db->trans_rollback();
+                    $status = false;
+                    $mensagem = $mensagem;
+                    $id_pedido = NULL;
                 }
 
             }
         }
 
-        return $response;
-    }
-
-
-    public function Update($id, $dados)
-    {
-        if (!isset($dados)) {
-            $response['status'] = false;
-            $response['message'] = "Dados não informados.";
-        } else {
-            
-            $this->form_validation->set_data($dados);
-            
-            $this->form_validation->set_rules('quantidade','','required',array('required' => 'Quantidade não informada.'));
-
-            if ($this->form_validation->run() === false) {
-                $response['status'] = false;
-                $response['message'] = validation_errors();
-
-            } else {
-            	$this->db->trans_begin();
-                $this->db->where("id",$id)->update('item', $dados);
-
-                 if ($this->db->trans_status() === TRUE){
-                    $response['status'] = true;
-                    $response['message'] = "Pedido atualizado com sucesso.";
-                    $this->db->trans_commit();
-                } else {
-                    $response['status'] = false;
-                    $response['message'] = $this->db->error_message();
-                    $this->db->trans_rollback();
-                }
-            }
+        $response['status'] = $status;
+        $response['mensagem'] = $mensagem;
+        if(!empty($id_pedido)){
+            $response['id_pedido'] = $id_pedido;
         }
-       
         return $response;
     }
 
+    public function Update($id,$dados){
+        $response['status'] = false;
+        $response['mensagem'] = "O método não foi implementado";
+        return $response;
+    }
 
     public function Delete($id){
 
-        	$this->db->trans_begin();
-            $this->db->where("id", $id)->delete('pedido');
+        $pedido = $this->GetAll($id);
 
-            if ($this->db->trans_status() === TRUE){
-                $response['status'] = true;
-                $response['message'] = "Pedido removido com sucesso.";
-                $this->db->trans_commit();
-            } else {
-                $response['status'] = false;
-                $response['message'] = $this->db->error_message();
-                $this->db->trans_rollback();
+        if(!empty($pedido)){
+            $this->db->where("id", $id)->delete('pedido');
+            if ($this->db->affected_rows()){
+                $status = true;
+                $mensagem   = "Pedido removido com sucesso.";
+            }else{
+                $status = false;
+                $mensagem = "Ouve um erro ao tentar remover o pedido.";
             }
-        
+        }else{
+            $status = false;
+            $mensagem = "O pedido ja tinha sido removido.";
+        }
+
+        $response['status'] = $status;
+        $response['mensagem'] = $mensagem;
         return $response;
     }
 }

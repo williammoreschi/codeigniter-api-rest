@@ -59,13 +59,7 @@ $route['translate_uri_dashes'] = TRUE;
 | -------------------------------------------------------------------------
 */
 
-/*
-$route["pedidos"]["get"] = "pedidos";
-$route["pedidos/(:num)"]["get"] = "pedidos/id/$1";
-$route["pedidos"]["post"] = "pedidos";
-$route["pedidos/(:num)"]["put"] = "pedidos/id/$1";
-$route["pedidos/(:num)"]["delete"] = "pedidos/id/$1";
-*/
+
 
 $route["pedidos"] 		 = "pedidos";
 $route["pedidos/(:num)"] = "pedidos";
